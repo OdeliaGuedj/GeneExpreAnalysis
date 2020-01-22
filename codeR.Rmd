@@ -1,0 +1,236 @@
+---
+title: "Expression Data Analysis"
+author: "Odélia Guedj"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r}
+library(opera)
+```
+
+# Exercice 1: Rappels de Statistiques
+
+## Question 1
+On cherche  la probabilité qu’un spot correspondant à un gène exprimé possède une valeur inférieure ou égale à 700.
+```{r}
+pnorm(700,1000,100)
+```
+## Question 2
+Quelle est la probabilité qu’un gène exprimé possède une expression inférieur ou égale à 700 ? 
+Pour les details des calculs voir le fichier pdf svp.
+
+```{r}
+pnorm(700,1000,100/sqrt(4))
+```
+## Question 3
+Quel est la valeur seuil t telle que la probablité d’avoir l’expression d’un gène exprimé inf´erieure ou égale à t soit égale à la probabilité d’avoir l’expression d’un gène non exprimé supérieur à t. 
+Voir pd svp. On obtient $t^{*} = 760$
+
+## Question 4
+Quelle est la probabilité d’avoir un gène exprimé dont l’expression est inférieur à t (faux négatif)? 
+
+```{r}
+pnorm(760,1000,100/sqrt(4))
+```
+## Question 5
+Quelle est la probabilité d’avoir un gène non exprimé dont l’expression est supérieur à t (faux positif)?
+```{r}
+1-pnorm(760,400,150/sqrt(4))
+```
+
+## Question 6
+
+### Simulation des données
+```{r}
+x1 = apply(matrix(rnorm(4*1000, 1000, 100),nrow = 4),2,mean)
+x2 <- apply(matrix(rnorm(4*1000, 400, 150),nrow = 4),2,mean)
+```
+
+### Histogrammes
+
+
+```{r}
+xlim <- c(floor(min(x1,x2)),floor(max(x1,x2))+1)
+ylim <- c(0,dnorm(1000,1000,100/sqrt(4))) 
+d = apply(rbind(dnorm(c(0:2000),400,150/sqrt(4)),dnorm(c(0:2000),1000,100/sqrt(4))),2,max) #la densité mélange
+
+hist(x1,xlim = xlim,freq = F, ylim = ylim, xlab = "", ylab = "", main = "")
+par(new = T)
+hist(x2,xlim = xlim,freq = F, ylim = ylim, xlab = "", ylab = "", main = "")
+par(new = T)
+plot(d, ylim = ylim, xlim = xlim, type = "l", xlab = "", ylab = "", main =
+       "Histogramme des données simulées", lwd = 3, col = "red")
+```
+
+```{r}
+hist(x1,xlim = xlim,freq = F, ylim = ylim, xlab = "", ylab = "", main = "")
+par(new = T)
+hist(x2,xlim = xlim,freq = F, ylim = ylim, xlab = "", ylab = "", main = "")
+par(new = T)
+plot(d, ylim = ylim, xlim = xlim, type = "l", xlab = "", ylab = "", main =
+       "Histogramme des données simulées", lwd = 3, col = "red")
+abline(v = 700, col = "green")
+```
+
+
+```{r}
+length(which(x1<=700))
+```
+# Exercice 2: Test d'hypothèses
+
+## Importation des données
+```{r}
+library(rda)
+data(colon)
+```
+
+```{r}
+dim(colon.x)
+length(colon.y)
+```
+
+```{r}
+colon = data.frame(colon.x, colon.y)
+```
+
+## Question 1
+```{r}
+gene1.sain = colon[colon$colon.y == 1 ,1]
+gene1.malade = colon[colon$colon.y == 2 ,1]
+```
+### Partie a
+```{r}
+par(mfrow = c(1,2))
+hist(gene1.sain, main = "Distribution de l'expression du gène 1 \n dans des cellules saines")
+hist(gene1.malade, main = "Distribution de l'expression du gène 1 \n dans des cellules cancéreuses")
+```
+
+Ave un teste de Student on vérifie que comme nous l'indiquent les histogrammes ci dessus, il n'y a pas de difference d'expression significative du gène 1 dans des cellules sines ou cancéreuses.
+```{r}
+test1 = t.test(gene1.sain, gene1.malade, var.equal = T)
+test1
+```
+### Partie b
+```{r}
+test1$p.value
+```
+
+
+On ne peut donc pas rejeter l'hypothèse nulle c'est à dire l'égalité d'expression du gène 1 dans les 2 conditions décrites (cellules saines VS cellules cancéreuses).
+
+### Partie c
+
+On cherche maintenant les 10 gènes dont l'expression dans les deux condition est la plus significativement différente.
+```{r}
+# On fait tous les test et on stock les pvaleurs dans un vecteur p
+p= c()
+for(i in 1:2000){
+  p[i] = t.test(colon[,i], colon[,2001], var.equal = T)$p.value
+}
+#On ordonne le vecteur p dans l'ordre croissant et on selectionne les 10 plus petites valeures
+p2 = order(p, decreasing = F)[1:10]
+```
+
+
+```{r}
+#On affiche les 10 gènes dont l'expression dans les deux condition est la plus significativement différente
+colnames(colon)[p2]
+```
+
+
+```{r}
+par(mfrow = c(2,5))
+plots_m = c()
+plots_s = c()
+for(i in 1:length(p2)){
+  m =  colon[colon.y==2,p2[i]]
+  s =  colon.x[colon.y==1,p2[i]]
+
+  densi_m <- density(m)
+  densi_s <- density(s)
+
+  xlim = c(min(densi_m$x,densi_s$x),max(densi_m$x,densi_s$x))
+  ylim = c(0,max(densi_m$y,densi_s$y))
+
+  plot(densi_m, xlim = xlim, ylim = ylim, xlab = "", ylab = "", main =  p2[i], col = "red")
+  lines(densi_s, xlim = xlim, ylim = ylim, xlab = "", ylab = "", main = p2[i], col = "green")
+#par(new = T)
+#plot(densi_sain, xlim = xlim, ylim = ylim, xlab = "", ylab = "", main = "", col = "blue")
+}
+```
+On voit que les ditributions de l'expression de ces 10 gènes dans les cellules saines (vert) sont vraiment différentes que dans les cellules cancéreuses (rouge).
+
+
+## Question 2
+
+### Simulation des données
+
+```{r}
+n = 1000
+simu = matrix(nrow = n, ncol = 20)
+for(i in 1:n){
+simu[i,]=c(rnorm(n = 10, mean = 0, sd = 1), rnorm(n = 10, mean = 2, sd = 1))}
+```
+```{r}
+cond1.expr = simu[,1:10]
+cond2.expr = simu[,11:20]
+```
+```{r}
+d_cond1 = density(cond1.expr)
+d_cond2 = density(cond2.expr)
+
+
+xlim1 = c(min(d_cond1$x,d_cond2$x),max(d_cond1$x,d_cond2$x))
+ylim1 = c(0,max(d_cond1$y,d_cond2$y))
+
+
+plot(d_cond1, xlim = xlim1, ylim = ylim1, xlab = "", ylab = "", main = "Densités des deux conditions", col = "steelblue", lwd = 2)
+par(new = T)
+plot(d_cond2, xlim = xlim1, ylim1 = ylim, xlab = "", ylab = "", main = "", col = "orange", lwd = 2)
+legend(col = c("steelblue", "orange"),legend = c("Condition 1", "Condition 2"), x = 3.5, y= .2,lty = 1)
+```
+### Partie a: Estimation des faux positifs avec les données simulées
+
+
+Pour un gne $i$ fixé
+$$(H_0): m^i_{cond1} = m^i_{cond2} ~et~(H_1): m^i_{cond1} \ne m^i_{cond2}$$
+De plus, on fait l'hypothèse que tous les gènes sont exprimés differement dans les deux condition. Ainsi tous les gènes dont les expressions dans les deux conditions ne sont pas significativement differents sont des faux négatifs.
+```{r}
+signif = 0
+pval = c()
+for(i in 1:n){
+  pval[i] = t.test(simu[i,1:10], simu[i,11:20], var.equal = T)$p.value
+  if(pval[i] <= 0.05) signif = signif +1}
+signif
+```
+```{r}
+FN = n -signif
+FN
+```
+On obtient donc 11 faux négatifs (soit $1.1 \%$).
+### Partie b
+
+#Question 3 Méthodes de Bonferroni et Sidak 
+
+```{r}
+BS = p.adjust(pval,method = "bonferroni")
+#BS
+cat(sum(pval <= 0.05), sum(BS <= 0.05))
+```
+Ainsi avec le correction de Bonferroni Sidak nous n'obtenons beaucoup moins de faux négatifs: on sait qu'il s'agit d'une amélioration puisque le nombre de vrai négatifs est 0 (hypotèse que chaque gène s'exprime differement dans les deux conditions).
+
+
+#Question 4 : Méthodes de Bonferroni et Hocheberg
+
+```{r}
+BH <- p.adjust(pval,method = "BH")
+cat(sum(pval <= 0.05), sum(BH <= 0.05))
+```
+ 
+Cette correction ne differe que très peu d'un test de student usuel.
+ 
+#Question 5
+ 
+ Ansi la méthode de Bonferoni Hocheberg va dans le sens de l'exercice c'est à dire qu'on rejette preque aussi souvent l'hypothèse nulle: c'est l'assurance qu'on la rejette à raison (d'ailleurs on le sait puisque les gènes sont supposés tous avoir une expression différente dans les deux conditions).
